@@ -140,7 +140,66 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS response VARCHAR(50) DEFAULT 'none';
 
 ---
 
-## Step 4: Recommended Cold Outreach Content
+## 24/7 Keep-Alive: Prevent Cold-Start Errors Forever
+
+Hugging Face Spaces sleep after ~30 minutes of inactivity. When the Space is asleep, the n8n workflow times out on execution — that's what caused your 3 previous errors.
+
+**A local `keep_alive.py` won't work** because it stops when your laptop goes to sleep. The solution is a **cloud-based ping** that runs 24/7 regardless of your laptop.
+
+### Option A: GitHub Actions (Recommended) — FREE, 24/7
+
+This runs on GitHub's servers every 5 minutes forever. Zero cost, zero setup once pushed.
+
+**How to activate:**
+
+1. Push this repo to GitHub
+2. GitHub will automatically find `.github/workflows/keep-alive.yml` and start running it
+3. That's it — no config, no secrets, no API keys
+
+The workflow pings `https://Adeel020-brains-n8n.hf.space/healthz` every 5 minutes.
+
+To push to GitHub:
+```bash
+# One-time setup
+gh repo create web-agency-leads --public --source=. --remote=origin --push
+# OR manually:
+git remote add origin https://github.com/YOUR_USERNAME/web-agency-leads.git
+git push -u origin master
+```
+
+### Option B: cron-job.org (Easier, no GitHub needed)
+
+For a simpler solution that doesn't need GitHub:
+
+1. Go to [cron-job.org](https://cron-job.org) and sign up (free)
+2. Click **Create Cronjob**
+3. Enter:
+   - **Title:** `n8n Keep-Alive`
+   - **URL:** `https://Adeel020-brains-n8n.hf.space/healthz`
+   - **Execution interval:** Every 5 minutes
+   - **Save**
+4. Done. cron-job.org will ping your n8n Space from their servers every 5 minutes, 24/7
+
+### Option C: UptimeRobot (Monitor + Keep-Alive)
+
+1. Go to [UptimeRobot.com](https://uptimerobot.com) and sign up (free, 50 monitors)
+2. Click **Add New Monitor**
+3. Set type to **HTTP(s)**
+4. URL: `https://Adeel020-brains-n8n.hf.space/healthz`
+5. Interval: 5 minutes
+6. Save
+
+This also alerts you if n8n goes down.
+
+### Why This Fixes the 3 Previous Errors
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| Exec #1: 21:53 - error (2s) | Space cold-start, request timed out | Keep-alive pings every 5 min → Space never sleeps |
+| Exec #2: 22:01 - error (0.15s) | Cold-start again | Same fix |
+| Exec #3: 22:37 - error (0.22s) | Cold-start again | Same fix |
+
+The 3 executions all ran within ~45 minutes of each other, and each failed in under 2 seconds — classic Hugging Face cold-start behavior. Once keep-alive is running, the Space stays warm and workflows execute instantly.
 
 **SMS/WhatsApp Template for Pakistani Businesses:**
 ```

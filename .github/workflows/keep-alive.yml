@@ -1,0 +1,31 @@
+name: n8n Keep-Alive (24/7)
+
+on:
+  schedule:
+    # Every 5 minutes, 24/7 — runs on GitHub's servers, not your laptop
+    - cron: '*/5 * * * *'
+  workflow_dispatch:  # Manual trigger for testing
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Hugging Face Space
+        run: |
+          echo "Pinging Adeel020-brains-n8n.hf.space..."
+          start=$(date +%s%N)
+          status=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 20 \
+            "https://Adeel020-brains-n8n.hf.space/healthz" 2>&1)
+          end=$(date +%s%N)
+          elapsed=$(( (end - start) / 1000000 ))
+          
+          if [ "$status" = "200" ]; then
+            echo "✅ n8n is alive (${elapsed}ms)"
+          else
+            echo "⚠️ n8n responded with status: $status (${elapsed}ms)"
+          fi
+
+      - name: Fail gracefully (no alerts)
+        if: failure()
+        run: |
+          echo "Ping failed — Space may be cold-starting. Will retry in 5 min."
