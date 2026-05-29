@@ -2,28 +2,38 @@ name: Lead Pipeline (24/7)
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
-  workflow_dispatch:  # Manual trigger
+    - cron: '0 */6 * * *'  # Every 6 hours, auto-runs on GitHub's servers
+  workflow_dispatch:  # Manual trigger too
 
 jobs:
-  scrape-and-load:
+  pipeline:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    timeout-minutes: 30  # Prevent runaway jobs
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
-        run: pip install requests psycopg2-binary python-dotenv
+        run: |
+          pip install requests psycopg2-binary python-dotenv
 
-      - name: Run scraper
+      - name: Scrape leads
+        id: scrape
+        continue-on-error: true  # Don't fail whole pipeline if scrape has errors
         env:
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
         run: python scraper.py
 
-      - name: Load to Supabase
+      - name: Load leads to Supabase
+        id: load
+        if: always()  # Run even if scrape had partial errors
         env:
           SUPABASE_DB: ${{ secrets.SUPABASE_DB }}
           SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
@@ -32,7 +42,9 @@ jobs:
           SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}
         run: python load_leads_to_db.py
 
-      - name: Export leads CSV
+      - name: Export leads
+        id: export
+        if: always()
         env:
           SUPABASE_DB: ${{ secrets.SUPABASE_DB }}
           SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
@@ -41,8 +53,19 @@ jobs:
           SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}
         run: python export_leads.py
 
-      - name: Upload leads artifact
+      - name: Upload leads CSV artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: leads-csv
+          name: leads-export
           path: all_leads_from_db.csv
+          retention-days: 7  # Auto-clean after a week
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "═══════════════════════════════════════════"
+          echo "  PIPELINE COMPLETE"
+          echo "═══════════════════════════════════════════"
+          echo "See latest leads anytime:"
+          echo "  GitHub → Actions → Lead Pipeline → latest run → Artifacts"
