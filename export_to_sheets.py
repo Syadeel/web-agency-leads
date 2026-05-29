@@ -22,6 +22,14 @@ import json
 import os
 import sys
 
+# Load .env for local dev (optional on GitHub Actions)
+try:
+    from dotenv import load_dotenv
+    if os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')):
+        load_dotenv()
+except ImportError:
+    pass
+
 # ─── Optional deps (graceful if not installed) ───────────────
 try:
     import gspread
@@ -163,12 +171,12 @@ def main():
         client = get_client()
         sheet = client.create("Web Agency Leads")
         sheet.share(None, perm_type="anyone", role="reader")  # Public read
-        print(f"\n✅ Sheet created!")
+        print(f"\n[OK] Sheet created!")
         print(f"   URL: {sheet.url}")
         print(f"   ID:  {sheet.id}")
-        print(f"\n📌 Add this to .env:")
+        print(f"\n[INFO] Add this to .env:")
         print(f"   SPREADSHEET_ID={sheet.id}")
-        print(f"\n📌 Share with your service account email (Editor):")
+        print(f"\n[INFO] Share with your service account email (Editor):")
         creds = get_credentials()
         print(f"   {creds.service_account_email}")
         return
@@ -215,7 +223,7 @@ def main():
     # Auto-resize columns (approximate by setting header bold)
     ws.format("1:1", {"textFormat": {"bold": True}})
 
-    print(f"\n✅ Done! View your sheet:")
+    print(f"\n[OK] Done! View your sheet:")
     print(f"   https://docs.google.com/spreadsheets/d/{sheet_id}")
 
 
