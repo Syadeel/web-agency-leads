@@ -22,7 +22,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests psycopg2-binary python-dotenv
+          pip install requests psycopg2-binary python-dotenv gspread google-auth
 
       - name: Scrape leads
         id: scrape
@@ -60,6 +60,19 @@ jobs:
           name: leads-export
           path: all_leads_from_db.csv
           retention-days: 7  # Auto-clean after a week
+
+      - name: Export to Google Sheets
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_DB: ${{ secrets.SUPABASE_DB }}
+          SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
+          SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
+          SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
+          SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}
+          GOOGLE_SHEETS_CREDS_JSON: ${{ secrets.GOOGLE_SHEETS_CREDS_JSON }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        run: python export_to_sheets.py
 
       - name: Summary
         if: always()
