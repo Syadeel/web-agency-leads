@@ -1,0 +1,157 @@
+{
+  "name": "Lead Generation Pipeline (Fixed)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Schedule (Every 6h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "niche",
+              "value": "fitness coach"
+            },
+            {
+              "name": "search_query",
+              "value": "site:instagram.com \"fitness coach\" (\"DM\" OR \"WhatsApp\") -linktree -www"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Set Search",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://serpapi.com/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.search_query }}"
+            },
+            {
+              "name": "engine",
+              "value": "google"
+            },
+            {
+              "name": "api_key",
+              "value": "90d06823e82a99a25b13a5ad69dd2533bb4ab16b44fb3f35f3caf16706885cb5"
+            },
+            {
+              "name": "num",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 5000
+        }
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "SerpAPI Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Instagram leads from SerpAPI results\nconst results = [];\nconst organicResults = $json.organic_results || [];\nconst niche = $('Set Search').item.json.niche;\n\nfor (const item of organicResults) {\n  const link = item.link || '';\n  \n  // Extract Instagram handle\n  const handleMatch = link.match(/instagram\\.com\\/([a-zA-Z0-9_\\.]+)/);\n  if (!handleMatch) continue;\n  \n  const handle = handleMatch[1];\n  \n  // Skip non-profile paths\n  const skipHandles = ['p', 'reel', 'reels', 'explore', 'stories', 'tv', 'popular'];\n  if (skipHandles.includes(handle.toLowerCase())) continue;\n  \n  // Skip topic pill URLs\n  if (link.includes('/popular/') || link.includes('topic_pill') || link.includes('utm_source=')) continue;\n  \n  const title = item.title || '';\n  const name = title.split('(@')[0].trim().replace(/\\s*\\u2022\\s*Instagram.*$/, '');\n  \n  const snippet = item.snippet || '';\n  \n  // Extract phone (Pakistani format)\n  const phoneMatch = snippet.match(/(?:\\+92|0)[3]\\d{2}[-\\s]?\\d{7}/);\n  const phone = phoneMatch ? phoneMatch[0] : 'Not Found';\n  \n  // Extract email\n  const emailMatch = snippet.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/);\n  const email = emailMatch ? emailMatch[0] : '';\n  \n  results.push({\n    json: {\n      instagram_handle: handle,\n      name: name || handle,\n      bio: snippet,\n      email: email,\n      phone: phone,\n      niche: niche,\n      status: 'new'\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Parse Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "tableId": "leads"
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Save to Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Schedule (Every 6h)": {
+      "main": [
+        [
+          {
+            "node": "Set Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Search": {
+      "main": [
+        [
+          {
+            "node": "SerpAPI Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI Search": {
+      "main": [
+        [
+          {
+            "node": "Parse Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Leads": {
+      "main": [
+        [
+          {
+            "node": "Save to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "pinData": {},
+  "versionId": "1.0.0",
+  "active": false,
+  "id": "FIXED-V2-WORKFLOW"
+}
