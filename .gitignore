@@ -1,0 +1,15 @@
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated data files (keep raw leads.csv in git, ignore exports)
+all_leads_from_db.csv
+leads_output/
