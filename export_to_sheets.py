@@ -72,9 +72,18 @@ def fetch_leads():
     col_list = ", ".join(f'"{c}"' for c in cols)
     cur.execute(f"SELECT {col_list} FROM leads ORDER BY id;")
     rows = cur.fetchall()
+
+    # Add Instagram Link as computed column
+    full_cols = ["Instagram Link"] + cols
+    full_rows = []
+    for row in rows:
+        handle = str(row[0] or "").strip().lower() if row[0] else ""
+        profile_url = f"https://instagram.com/{handle}/" if handle else ""
+        full_rows.append([profile_url] + list(row))
+
     cur.close()
     conn.close()
-    return cols, rows
+    return full_cols, full_rows
 
 
 def format_cell(v):

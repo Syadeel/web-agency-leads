@@ -31,24 +31,58 @@ if not SERPAPI_KEY:
     raise ValueError("SERPAPI_KEY not set. Add to .env file or set as GitHub Actions secret.")
 
 NICHES = [
-    "clothing brand", "home bakery", "consultant",
-    "real estate agent", "restaurant", "fitness coach",
-    "photographer", "makeup artist", "jewelry store",
-    "ecommerce store", "digital agency", "gym",
-    "beauty salon", "catering service", "event planner",
-    "interior designer", "tutor", "car rental",
-    "tailor", "boutique", "dentist",
-    "pharmacy", "bakery", "coffee shop",
-    "salon", "spa", "fashion designer",
-    "graphic designer", "web developer", "marketing agency",
-    "online store", "handicrafts", "organic farm",
-    "pet store", "bookstore", "art gallery",
-    "music teacher", "yoga instructor", "barber",
+    # Legal & Medical ($5k-$20k websites)
+    "law firm", "personal injury lawyer", "family lawyer",
+    "dentist clinic", "cosmetic dentist", "plastic surgeon",
+    "dermatologist", "medical spa", "chiropractor",
+    "orthodontist", "eye doctor", "physical therapist",
+
+    # Real Estate & Property ($5k-$15k)
+    "real estate agency", "property management", "real estate agent",
+    "architect firm", "interior design studio",
+
+    # Financial & Professional Services ($5k-$15k)
+    "wealth management", "financial advisor", "insurance agency",
+    "accounting firm", "CPA firm", "business consultant",
+
+    # Home Services ($5k-$10k)
+    "construction company", "home builder", "remodeling contractor",
+    "landscaping company", "roofing company", "solar company",
+
+    # Hospitality & Venues ($5k-$10k)
+    "boutique hotel", "fine dining restaurant", "wedding venue",
+    "event venue", "luxury spa", "resort",
+
+    # Automotive ($5k-$10k)
+    "car dealership", "auto repair shop", "auto detailing",
+
+    # Health & Fitness ($3k-$8k)
+    "med spa", "weight loss clinic", "wellness center",
+    "yoga studio", "crossfit gym",
 ]
 
-CITIES = ["Lahore", "Karachi", "Islamabad", "Pakistan"]
+# USA + UK + EU major cities (high-ticket markets) — optimized to 20 cities
+CITIES = [
+    # USA (10 biggest)
+    "New York", "Los Angeles", "Chicago", "Houston", "Miami",
+    "San Francisco", "Seattle", "Boston", "Dallas", "Atlanta",
+    # UK (4)
+    "London", "Manchester", "Edinburgh", "Birmingham",
+    # EU (6)
+    "Berlin", "Paris", "Milan", "Madrid", "Amsterdam", "Zurich",
+]
 
-PHONE_REGEX = r'(?:\+92|0)[3]\d{2}[-\s]?\d{7}'
+
+# Build a single optimized query per niche per city
+def generate_queries():
+    queries = []
+    for niche in NICHES:
+        for city in CITIES:
+            query = f'site:instagram.com "{niche}" "{city}" ("contact" OR "book" OR "website") -linktree -store -shop'
+            queries.append(query)
+    return queries
+
+PHONE_REGEX = r'(?:\+?\d{1,3})?[\s.-]?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}'
 
 # ─── Retry Helper ──────────────────────────────────────────────
 def fetch_with_retries(url, params, max_retries=3, base_delay=2):
@@ -155,21 +189,26 @@ def extract_leads(results, niche=""):
 # ─── Main ───────────────────────────────────────────────────────
 def main():
     all_leads = []
-    total_queries = len(NICHES) * len(CITIES)
+    queries = generate_queries()
+    total_queries = len(queries)
     errors = 0
 
-    for i, niche in enumerate(NICHES):
-        for city in CITIES:
-            query = f'site:instagram.com "{niche}" "{city}" ("DM to order" OR "WhatsApp") -linktree -www'
+    for i, query in enumerate(queries):
+        results = fetch_results(query)
+        if not results:
+            errors += 1
+            continue
 
-            results = fetch_results(query)
-            if not results:
-                errors += 1
-                continue
+        # Extract niche from query for metadata
+        niche = "unknown"
+        for n in NICHES:
+            if f'"{n}"' in query or f'"{n}' in query:
+                niche = n
+                break
 
-            leads = extract_leads(results, niche)
-            all_leads.extend(leads)
-            time.sleep(1.5)  # Rate limit
+        leads = extract_leads(results, niche)
+        all_leads.extend(leads)
+        time.sleep(1.5)  # Rate limit
 
     # Dedup by handle
     unique = {}
