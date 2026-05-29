@@ -8,6 +8,8 @@ The lead generation system now has a working pipeline:
 scraper.py → leads.csv → load_leads_to_db.py → Supabase `leads` table → export_leads.py
 ```
 
+**Pipeline status:** ✅ Full run completed. **22 leads scraped, 21 in DB.** 5 with phone numbers. Spans 12 niches.
+
 ### Leads Table Schema
 
 | Column | Type | Notes |
@@ -21,31 +23,80 @@ scraper.py → leads.csv → load_leads_to_db.py → Supabase `leads` table → 
 | `niche` | varchar | E.g. "clothing brand", "restaurant" |
 | `status` | varchar | Not yet used |
 | `created_at` | timestamp | Auto-set on insert |
+| `follower_count` | integer | From enrichment |
+| `follower_display` | varchar | Formatted follower display |
+| `has_website` | boolean | Website presence flag |
+| `website_status` | varchar | Website status |
+| `website_url` | varchar | Business website |
+| `business_type` | varchar | Type classification |
+| `city` | varchar | Location |
+| `country` | varchar | Country |
+| `priority` | varchar | Lead priority |
+| `enriched_at` | timestamptz | Last enrichment time |
 
 ---
 
-## The Bridge: Supabase DB as Central Hub
+## n8n on Hugging Face — Connection Guide
 
-Since **n8n is not running locally** (port 5678 closed) and the only existing credential is a `supabaseApi` type for "Supabase account", the n8n workflow was clearly designed to pull from Supabase. The DB is the bridge.
+Your n8n is deployed on **Hugging Face Spaces**. Each Space gets a URL like `https://{username}-{space-name}.hf.space/`.
 
-**Architecture:**
+### How to Find Your n8n URL
+
+1. Log in to [huggingface.co](https://huggingface.co)
+2. Go to your profile → **Spaces**
+3. Click on your n8n Space (the one linked to your Supabase)
+4. Your n8n URL is displayed at the top of the Space page
+5. It should look like: `https://yourusername-n8n.hf.space/`
+
+> **Tip:** The Supabase credentials in your `.env` are the same ones your n8n Hugging Face Space uses. Your n8n Space's environment variables should have:
+> - `DB_POSTGRESDB_HOST` = `aws-1-us-east-1.pooler.supabase.com`
+> - `DB_POSTGRESDB_PORT` = `6543`
+> - `DB_POSTGRESDB_USER` = `postgres.hrzyuchlqihbdllbcxlh`
+> - `DB_POSTGRESDB_PASSWORD` = *your Supabase password*
+> - `N8N_ENCRYPTION_KEY` = base64 random string
+
+### n8n Hugging Face Limitations
+
+| Factor | Limit |
+|--------|-------|
+| RAM | 16 GB (free tier) |
+| CPU | 2 vCPU |
+| Disk | 50 GB (non-persistent — DB must be external Supabase) |
+| Sleep | Space sleeps after inactivity — wakes on HTTP request |
+| Custom domain | Not supported on free tier (use `hf.space` subdomain) |
+
+### Architecture
+
 ```
-[Scraper] → [Supabase leads table] → [n8n workflow (hosted elsewhere)] → [Outreach channels]
+[Local Machine]                          [Hugging Face Cloud]
+                                     ┌─────────────────────┐
+scraper.py ────────┐                 │   n8n Instance       │
+                   │                 │   (Hugging Face      │
+load_leads_to_    ─┼─→ Supabase DB ──→    Space)            │
+db.py              │   (PostgreSQL)  │   ┌───────────────┐  │
+                   │                 │   │ Workflow:      │  │
+export_leads.py ───┘                 │   │ Lead Scraper   │──┼──→ Email / WhatsApp
+                                     │   └───────────────┘  │
+                                     └─────────────────────┘
 ```
 
 ---
 
-## Step 1: Find the n8n Instance
+## Step 1: Connect n8n to Supabase and Fix Workflow
 
-The n8n instance is hosted elsewhere (not on this machine). To find it:
-1. Check the Supabase `settings` table for a `n8n.host` or `hostUrl` key
-2. Check n8n's `workflow_entity` for any webhook URLs
-3. Look for `webhook_entity` table — it may contain active webhook URLs that reveal the host
-4. Check browser bookmarks or browser history
+The existing "Google Dorking Lead Scraper" workflow (ID: `B8QU1MNXhRAXlRM8`) has 3 failed executions. Since n8n is on Hugging Face:
 
-**Once found**, you can update the n8n workflow to:
-- Listen for new rows in `leads` table (via Supabase trigger or polling)
-- Process each lead through outreach stages
+1. Open your n8n URL in a browser
+2. Check the workflow execution logs for error details
+3. Likely cause: The workflow had hardcoded credentials that expired or the HTTP node config was wrong
+4. Create a new workflow (or fix the existing one) with these nodes:
+
+**New workflow suggestion — "Process New Leads":**
+- **Trigger:** Webhook (HTTP POST) OR Schedule (every hour)
+- **Node 1:** Supabase — `SELECT * FROM leads WHERE status IS NULL OR status = ''`
+- **Node 2:** IF phone != "Not Found" → SMS/WhatsApp branch
+- **Node 3:** IF email NOT NULL → Email branch
+- **Node 4:** Update lead `status = 'contacted'` in Supabase
 
 ---
 
