@@ -2,7 +2,7 @@ name: Lead Pipeline (24/7)
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours, auto-runs on GitHub's servers
+    - cron: '0 0 * * *'  # Every day at midnight UTC
   workflow_dispatch:  # Manual trigger too
 
 jobs:

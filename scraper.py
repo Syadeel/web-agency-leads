@@ -34,7 +34,16 @@ NICHES = [
     "clothing brand", "home bakery", "consultant",
     "real estate agent", "restaurant", "fitness coach",
     "photographer", "makeup artist", "jewelry store",
-    "ecommerce store", "digital agency", "gym"
+    "ecommerce store", "digital agency", "gym",
+    "beauty salon", "catering service", "event planner",
+    "interior designer", "tutor", "car rental",
+    "tailor", "boutique", "dentist",
+    "pharmacy", "bakery", "coffee shop",
+    "salon", "spa", "fashion designer",
+    "graphic designer", "web developer", "marketing agency",
+    "online store", "handicrafts", "organic farm",
+    "pet store", "bookstore", "art gallery",
+    "music teacher", "yoga instructor", "barber",
 ]
 
 CITIES = ["Lahore", "Karachi", "Islamabad", "Pakistan"]
