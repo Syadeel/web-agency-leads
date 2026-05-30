@@ -2,7 +2,7 @@ name: Lead Pipeline (24/7)
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Every day at midnight UTC
+    - cron: '0 23 * * *'  # 23:00 UTC = 4:00 AM PKT — scraping starts before you wake up
   workflow_dispatch:  # Manual trigger too
 
 jobs:

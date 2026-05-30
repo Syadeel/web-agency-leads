@@ -72,15 +72,37 @@ CITIES = [
     "Berlin", "Paris", "Milan", "Madrid", "Amsterdam", "Zurich",
 ]
 
+# SerpAPI free tier: 100 searches/month.
+# We rotate 5 niches per day so you get fresh leads daily without hitting the cap.
+# Day 1-6 cycles through all 32 niches.
+# Each run = 5 niches x 20 cities = 100 queries = stays within free tier.
+NICHES_PER_DAY = 5
+
+
+def get_todays_niches():
+    """Pick a rotating subset of niches for today to stay within SerpAPI free tier."""
+    from datetime import date
+    day_number = date.today().toordinal()  # Days since year 1
+    # Pick contiguous chunk of NICHES_PER_DAY, wrapping around
+    start = (day_number * NICHES_PER_DAY) % len(NICHES)
+    # Return 5 niches, wrap if needed
+    result = []
+    for i in range(NICHES_PER_DAY):
+        idx = (start + i) % len(NICHES)
+        result.append(NICHES[idx])
+    return result
+
 
 # Build a single optimized query per niche per city
 def generate_queries():
+    """Build queries for today's rotating niches only."""
+    today_niches = get_todays_niches()
     queries = []
-    for niche in NICHES:
+    for niche in today_niches:
         for city in CITIES:
             query = f'site:instagram.com "{niche}" "{city}" ("contact" OR "book" OR "website") -linktree -store -shop'
             queries.append(query)
-    return queries
+    return queries, today_niches
 
 PHONE_REGEX = r'(?:\+?\d{1,3})?[\s.-]?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}'
 
@@ -189,9 +211,13 @@ def extract_leads(results, niche=""):
 # ─── Main ───────────────────────────────────────────────────────
 def main():
     all_leads = []
-    queries = generate_queries()
+    queries, today_niches = generate_queries()
     total_queries = len(queries)
     errors = 0
+
+    from datetime import date
+    print(f"TODAY={date.today()}")
+    print(f"NICHES={','.join(today_niches)}")
 
     for i, query in enumerate(queries):
         results = fetch_results(query)
@@ -199,10 +225,10 @@ def main():
             errors += 1
             continue
 
-        # Extract niche from query for metadata
+        # Extract niche from query
         niche = "unknown"
-        for n in NICHES:
-            if f'"{n}"' in query or f'"{n}' in query:
+        for n in today_niches:
+            if f'"{n}"' in query:
                 niche = n
                 break
 
