@@ -25,9 +25,11 @@ jobs:
 
       - name: Scrape leads
         id: scrape
-        continue-on-error: true  # Don't fail whole pipeline if scrape has errors
+        continue-on-error: true
         env:
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          GOOGLE_CSE_API_KEY: ${{ secrets.GOOGLE_CSE_API_KEY }}
+          GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
         run: python scraper.py
 
       - name: Load leads to Supabase

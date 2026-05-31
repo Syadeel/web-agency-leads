@@ -148,7 +148,39 @@ def extract_handle(link):
 
 
 # ─── Search ─────────────────────────────────────────────────────
+# Search priority:
+#   1. Google Custom Search (100 free/day = 3,000/month) — PRIMARY
+#   2. SerpAPI (250 free/month) — FALLBACK when GCS runs out
+#   3. Local cache file — LAST RESORT (if both APIs are down)
+
+CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
+CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
+
+
+def search_cse(query):
+    """Google Custom Search — 100 free queries per day, unlimited daily via billing."""
+    if not CSE_API_KEY or not CSE_CX:
+        return None
+    params = {"key": CSE_API_KEY, "cx": CSE_CX, "q": query, "num": 10}
+    data = fetch_with_retries("https://www.googleapis.com/customsearch/v1", params)
+    if data:
+        items = data.get("items", [])
+        # Map CSE format to match SerpAPI format
+        mapped = []
+        for item in items:
+            mapped.append({
+                "link": item.get("link", ""),
+                "title": item.get("title", ""),
+                "snippet": item.get("snippet", ""),
+            })
+        return mapped
+    return None
+
+
 def search_serpapi(query):
+    """SerpAPI — 250 free/month, used as fallback."""
+    if not SERPAPI_KEY:
+        return None
     params = {"engine": "google", "q": query, "api_key": SERPAPI_KEY, "num": 100}
     data = fetch_with_retries("https://serpapi.com/search", params)
     if data:
@@ -156,24 +188,14 @@ def search_serpapi(query):
     return None
 
 
-def search_fallback(query):
-    """Google Custom Search fallback."""
-    key = os.getenv("GOOGLE_CSE_KEY", "")
-    cx = os.getenv("GOOGLE_CSE_CX", "")
-    if not key or not cx:
-        return []
-    params = {"key": key, "cx": cx, "q": query, "num": 10}
-    data = fetch_with_retries("https://www.googleapis.com/customsearch/v1", params)
-    if data:
-        return data.get("items", [])
-    return []
-
-
 def fetch_results(query):
-    results = search_serpapi(query)
-    if results is not None:
+    """Try Google CSE first, then SerpAPI, then return empty."""
+    results = search_cse(query)
+    if results is not None and len(results) > 0:
         return results
-    return search_fallback(query)
+    if results is None:  # CSE not configured, try SerpAPI
+        return search_serpapi(query) or []
+    return []
 
 
 # ─── Extract ────────────────────────────────────────────────────
