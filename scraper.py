@@ -107,12 +107,12 @@ def generate_queries():
 PHONE_REGEX = r'(?:\+?\d{1,3})?[\s.-]?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}'
 
 # ─── Retry Helper ──────────────────────────────────────────────
-def fetch_with_retries(url, params, max_retries=3, base_delay=2):
+def fetch_with_retries(url, params, max_retries=3, base_delay=2, headers=None):
     """Fetch URL with exponential backoff retry."""
     last_error = None
     for attempt in range(1, max_retries + 1):
         try:
-            response = requests.get(url, params=params, timeout=30)
+            response = requests.get(url, params=params, headers=headers, timeout=30)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.Timeout:
@@ -148,37 +148,39 @@ def extract_handle(link):
 
 
 # ─── Search ─────────────────────────────────────────────────────
-# Search priority:
-#   1. Google Custom Search (100 free/day = 3,000/month) — PRIMARY
-#   2. SerpAPI (250 free/month) — FALLBACK when GCS runs out
-#   3. Local cache file — LAST RESORT (if both APIs are down)
+# Priority: Brave API (1,000 free/mo) → SerpAPI (250/mo) → Google CSE (short snippets)
 
+BRAVE_API_KEY = os.getenv("BRAVE_API_KEY", "")
 CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
 CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
 
 
-def search_cse(query):
-    """Google Custom Search — 100 free queries per day, unlimited daily via billing."""
-    if not CSE_API_KEY or not CSE_CX:
+def search_results_formatter(raw_results):
+    """Normalize results from any API to standard format."""
+    formatted = []
+    for item in raw_results:
+        formatted.append({
+            "link": item.get("link") or item.get("url", ""),
+            "title": item.get("title", ""),
+            "snippet": item.get("snippet") or item.get("description", ""),
+        })
+    return formatted
+
+
+def search_brave(query):
+    """Brave Search API — $5 free/month = ~1,000 searches, rich snippets."""
+    if not BRAVE_API_KEY:
         return None
-    params = {"key": CSE_API_KEY, "cx": CSE_CX, "q": query, "num": 10}
-    data = fetch_with_retries("https://www.googleapis.com/customsearch/v1", params)
-    if data:
-        items = data.get("items", [])
-        # Map CSE format to match SerpAPI format
-        mapped = []
-        for item in items:
-            mapped.append({
-                "link": item.get("link", ""),
-                "title": item.get("title", ""),
-                "snippet": item.get("snippet", ""),
-            })
-        return mapped
+    params = {"q": query, "count": 10, "safesearch": "off"}
+    headers = {"X-Subscription-Token": BRAVE_API_KEY, "Accept": "application/json"}
+    data = fetch_with_retries("https://api.search.brave.com/res/v1/web/search", params, headers=headers)
+    if data and "web" in data and data["web"].get("results"):
+        return search_results_formatter(data["web"]["results"])
     return None
 
 
 def search_serpapi(query):
-    """SerpAPI — 250 free/month, used as fallback."""
+    """SerpAPI — 250 free/month, rich snippets."""
     if not SERPAPI_KEY:
         return None
     params = {"engine": "google", "q": query, "api_key": SERPAPI_KEY, "num": 100}
@@ -188,14 +190,24 @@ def search_serpapi(query):
     return None
 
 
+def search_cse(query):
+    """Google Custom Search — 100 free/day, short snippets (last resort)."""
+    if not CSE_API_KEY or not CSE_CX:
+        return None
+    params = {"key": CSE_API_KEY, "cx": CSE_CX, "q": query, "num": 10}
+    data = fetch_with_retries("https://www.googleapis.com/customsearch/v1", params)
+    if data:
+        items = data.get("items", [])
+        return search_results_formatter(items)
+    return None
+
+
 def fetch_results(query):
-    """Try SerpAPI first (richer snippets), fall back to Google CSE."""
-    results = search_serpapi(query)
-    if results is not None and len(results) > 0:
-        return results
-    results = search_cse(query)
-    if results is not None and len(results) > 0:
-        return results
+    """Brave → SerpAPI → CSE, in that order."""
+    for search_fn in [search_brave, search_serpapi, search_cse]:
+        results = search_fn(query)
+        if results is not None and len(results) > 0:
+            return results
     return []
 
 
