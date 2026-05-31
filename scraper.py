@@ -189,12 +189,13 @@ def search_serpapi(query):
 
 
 def fetch_results(query):
-    """Try Google CSE first, then SerpAPI, then return empty."""
+    """Try SerpAPI first (richer snippets), fall back to Google CSE."""
+    results = search_serpapi(query)
+    if results is not None and len(results) > 0:
+        return results
     results = search_cse(query)
     if results is not None and len(results) > 0:
         return results
-    if results is None:  # CSE not configured, try SerpAPI
-        return search_serpapi(query) or []
     return []
 
 
