@@ -240,7 +240,7 @@ def extract_follower_count(snippet):
 
 def is_big_account(follower_count):
     """Only keep accounts with meaningful following (1k+ for quality)."""
-    return follower_count >= 1000  # Adjust: 1000 = 1k followers minimum
+    return follower_count >= 50000  # Only accounts with 50k+ followers (high-value)
 
 
 def extract_city_country(snippet, niche, city_searched):
