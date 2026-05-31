@@ -56,6 +56,10 @@ def insert_leads(leads):
             (lead.get("Bio Snippet", "") or "")[:500],
             (lead.get("Phone Number", "") or "").strip(),
             (lead.get("Niche", "") or "").strip().lower(),
+            (lead.get("Email", "") or "").strip(),
+            (lead.get("Followers", "") or "").strip(),
+            (lead.get("City", "") or "").strip(),
+            (lead.get("Country", "") or "").strip(),
         ))
 
     if not rows:
@@ -65,7 +69,7 @@ def insert_leads(leads):
 
     try:
         insert_sql = """
-            INSERT INTO leads (instagram_handle, name, bio, phone, niche)
+            INSERT INTO leads (instagram_handle, name, bio, phone, niche, email, follower_display, city, country)
             VALUES %s
             ON CONFLICT (instagram_handle) DO NOTHING;
         """

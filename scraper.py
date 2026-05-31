@@ -199,7 +199,51 @@ def fetch_results(query):
 
 
 # ─── Extract ────────────────────────────────────────────────────
-def extract_leads(results, niche=""):
+# Regex patterns
+EMAIL_REGEX = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+FOLLOWER_REGEX = r'(\d[\d,]*\.?\d*)\s*[KkMmBb]?\s*(?:followers|follower|subscribers)'
+LOCATION_REGEX = r'📍\s*([^📍\n]{3,60})'
+
+
+def extract_follower_count(snippet):
+    """Extract follower count from Instagram bio snippet and return (numeric, display)."""
+    match = re.search(r'(\d[\d,]*\.?\d*)\s*([KkMmBb]?)\s*(?:followers|follower|subscribers)', snippet)
+    if not match:
+        match = re.search(r'(\d+\.?\d*)\s*([KkMmBb]?)\s*(?:fol)', snippet)
+    if not match:
+        return 0, "Unknown"
+
+    num_str = match.group(1).replace(",", "")
+    suffix = match.group(2).upper()
+    try:
+        num = float(num_str)
+        multiplier = {"K": 1000, "M": 1000000, "B": 1000000000, "": 1}
+        total = int(num * multiplier.get(suffix, 1))
+        display = f"{num_str}{suffix}" if suffix else f"{int(num):,}"
+        return total, display
+    except:
+        return 0, "Unknown"
+
+
+def is_big_account(follower_count):
+    """Only keep accounts with meaningful following (1k+ for quality)."""
+    return follower_count >= 1000  # Adjust: 1000 = 1k followers minimum
+
+
+def extract_city_country(snippet, niche, city_searched):
+    """Extract location from bio snippet or fall back to searched city."""
+    # Try to find location patterns
+    loc_match = re.search(r'📍\s*([^📍\n]{3,60})', snippet)
+    if loc_match:
+        return loc_match.group(1).strip(), "US/UK/EU"
+    # Try common keywords
+    for city_key in ["New York", "Los Angeles", "London", "Paris", "Berlin", "Milan", "Madrid"]:
+        if city_key.lower() in snippet.lower():
+            return city_key, "US/UK/EU"
+    return city_searched, "US/UK/EU"
+
+
+def extract_leads(results, niche="", city_searched=""):
     leads = []
     seen = set()
     for res in results:
@@ -213,20 +257,44 @@ def extract_leads(results, niche=""):
             if not handle or handle in seen:
                 continue
             seen.add(handle)
+
+            # Business name
             shop = title.split("(@")[0].strip() if "(@" in title else title
-            shop = re.sub(r'\s*•\s*Instagram.*$', '', shop).strip()
+            shop = re.sub(r'\s*•\s*Instagram.*$', '', shop).strip() or handle
+
+            # Phone
             phone_m = re.search(PHONE_REGEX, snippet)
             phone = phone_m.group(0) if phone_m else "Not Found"
+
+            # Email
+            email_m = re.search(EMAIL_REGEX, snippet)
+            email = email_m.group(0) if email_m else ""
+
+            # Followers
+            follower_count, follower_display = extract_follower_count(snippet)
+
+            # Filter: skip tiny accounts
+            if not is_big_account(follower_count):
+                continue
+
+            # City & Country
+            city, country = extract_city_country(snippet, niche, city_searched)
+
             leads.append({
-                "Shop Name": shop if shop else handle,
+                "Shop Name": shop,
                 "Instagram Link": link,
                 "Instagram Handle": handle,
                 "Phone Number": phone,
+                "Email": email,
+                "Followers": follower_display,
+                "Follower Count": follower_count,
                 "Niche": niche,
+                "City": city,
+                "Country": country,
                 "Bio Snippet": snippet[:500]
             })
         except Exception:
-            continue  # Skip any malformed entries
+            continue
     return leads
 
 
@@ -247,16 +315,20 @@ def main():
             errors += 1
             continue
 
-        # Extract niche from query
         niche = "unknown"
+        city_searched = "US"
         for n in today_niches:
             if f'"{n}"' in query:
                 niche = n
                 break
+        for c in CITIES:
+            if f'"{c}"' in query:
+                city_searched = c
+                break
 
-        leads = extract_leads(results, niche)
+        leads = extract_leads(results, niche, city_searched)
         all_leads.extend(leads)
-        time.sleep(1.5)  # Rate limit
+        time.sleep(1.5)
 
     # Dedup by handle
     unique = {}
@@ -270,14 +342,16 @@ def main():
     # Save
     fp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "leads.csv")
     with open(fp, "w", newline="", encoding="utf-8") as f:
-        keys = ["Shop Name", "Instagram Link", "Instagram Handle", "Phone Number", "Niche", "Bio Snippet"]
+        keys = ["Shop Name", "Instagram Link", "Instagram Handle", "Phone Number", "Email", "Followers", "Niche", "City", "Country", "Bio Snippet"]
         w = csv.DictWriter(f, fieldnames=keys)
         w.writeheader()
         w.writerows(final_leads)
 
     phones = sum(1 for l in final_leads if l["Phone Number"] != "Not Found")
+    emails = sum(1 for l in final_leads if l.get("Email"))
     print(f"SCRAPED={len(final_leads)}")
     print(f"PHONES={phones}")
+    print(f"EMAILS={emails}")
     print(f"ERRORS={errors}")
     print(f"TOTAL_QUERIES={total_queries}")
 
