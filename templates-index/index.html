@@ -43,12 +43,21 @@
     <footer class="border-t border-zinc-800 py-8 text-center text-zinc-600 text-sm">
         Powered by <a href="https://thecapitalacquisition.com" class="hover:text-zinc-400 transition-colors">Capital Acquisition</a>
     </footer>
-    <!-- CA AI Chatbot -->
-    <script src="https://spontaneous-gumdrop-67c452.netlify.app/embed/embed.js"
-            data-tenant="0b0ab793-eaba-46f6-954e-81ba90928609"
-            data-api="https://spontaneous-gumdrop-67c452.netlify.app"
-            data-color="#000000"
-            data-greeting="Welcome to The Capital Acquisition! Ask us about our web design, AI chatbot, or template services.">
-    </script>
+    <!-- CA Chatbot - Chatwoot -->
+<script>
+  (function(d,t) {
+    var BASE_URL="https://adeel020-ca-chatwoot.hf.space";
+    var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
+    g.src=BASE_URL+"/packs/js/sdk.js";
+    g.async = true;
+    s.parentNode.insertBefore(g,s);
+    g.onload=function(){
+      window.chatwootSDK.run({
+        websiteToken: 'YCyRfE4GLM611Ad6rwYDjecE',
+        baseUrl: BASE_URL
+      })
+    }
+  })(document,"script");
+</script>
 </body>
 </html>
