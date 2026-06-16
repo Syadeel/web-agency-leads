@@ -2,13 +2,13 @@ name: Lead Pipeline (24/7)
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # 23:00 UTC = 4:00 AM PKT — scraping starts before you wake up
-  workflow_dispatch:  # Manual trigger too
+    - cron: '0 23 * * *'  # 23:00 UTC = 4:00 AM PKT
+  workflow_dispatch:
 
 jobs:
   pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Prevent runaway jobs
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repo
@@ -21,66 +21,21 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests psycopg2-binary python-dotenv gspread google-auth tavily firecrawl-py
+          pip install requests python-dotenv gspread google-auth tavily firecrawl-py
 
-      - name: Scrape leads
+      - name: Scrape leads (Tavily + Firecrawl, heavy mode for Pakistan)
         id: scrape
         continue-on-error: true
         env:
-          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-          GOOGLE_CSE_API_KEY: ${{ secrets.GOOGLE_CSE_API_KEY }}
-          GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
-        run: python scraper.py
-
-      - name: Load leads to Supabase
-        id: load
-        if: always()  # Run even if scrape had partial errors
-        env:
-          SUPABASE_DB: ${{ secrets.SUPABASE_DB }}
-          SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
-          SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
-          SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
-          SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}
-        run: python load_leads_to_db.py
-
-      - name: Export leads
-        id: export
-        if: always()
-        env:
-          SUPABASE_DB: ${{ secrets.SUPABASE_DB }}
-          SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
-          SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
-          SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
-          SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}
-        run: python export_leads.py
-
-      - name: Upload leads CSV artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: leads-export
-          path: all_leads_from_db.csv
-          retention-days: 7  # Auto-clean after a week
-
-      - name: Export to Google Sheets
-        if: always()
-        continue-on-error: true
-        env:
-          SUPABASE_DB: ${{ secrets.SUPABASE_DB }}
-          SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
-          SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
-          SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
-          SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}
-          GOOGLE_SHEETS_CREDS_JSON: ${{ secrets.GOOGLE_SHEETS_CREDS_JSON }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-        run: python export_to_sheets.py
+        run: python scraper_v2.py --daily --heavy
 
       - name: Summary
         if: always()
         run: |
-          echo "═══════════════════════════════════════════"
+          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
           echo "  PIPELINE COMPLETE"
-          echo "═══════════════════════════════════════════"
-          echo "See latest leads anytime:"
-          echo "  GitHub → Actions → Lead Pipeline → latest run → Artifacts"
+          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
