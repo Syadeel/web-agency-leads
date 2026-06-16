@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests psycopg2-binary python-dotenv gspread google-auth
+          pip install requests psycopg2-binary python-dotenv gspread google-auth tavily firecrawl-py
 
       - name: Scrape leads
         id: scrape
