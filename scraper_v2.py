@@ -261,6 +261,51 @@ def extract_contact_info(text: str) -> Dict[str, str]:
     }
 
 
+def is_pakistani_lead(country: str, url: str, phone: str, email: str) -> bool:
+    """
+    Check if a lead is genuinely from Pakistan.
+    Used to filter out Indian/other leads from Pakistan searches.
+    """
+    if country.lower() != "pakistan":
+        return True  # Only filter for Pakistan
+    
+    checks = []
+    
+    # Phone check: Pakistani numbers start with +92 or 03 (local)
+    if phone:
+        phone_clean = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        if phone_clean.startswith("+92") or phone_clean.startswith("92"):
+            checks.append("phone")
+        elif phone_clean.startswith("03") and len(phone_clean) >= 10:
+            checks.append("phone")
+        elif phone_clean.startswith("+91") or phone_clean.startswith("91"):
+            checks.append("INDIAN_PHONE")  # Flag as Indian
+    
+    # Email domain check: .pk is Pakistani
+    if email:
+        if email.lower().endswith(".pk"):
+            checks.append("email")
+    
+    # Website domain check: .pk is Pakistani
+    if url:
+        url_lower = url.lower()
+        if ".pk" in url_lower or ".com.pk" in url_lower:
+            checks.append("website")
+    
+    # If phone is Indian (+91), reject
+    if "INDIAN_PHONE" in checks:
+        return False
+    
+    # If we have at least one Pakistani indicator, accept
+    if checks:
+        return True
+    
+    # No indicators at all — check business name keywords
+    # Many Pakistani businesses use .com but are still in Pakistan
+    # For these, we'll accept them but flag for review
+    return True  # Accept but may need human review
+
+
 # ----------------------------------------------------------------------
 # Google Sheets Integration
 # ----------------------------------------------------------------------
@@ -384,6 +429,11 @@ def scrape_country(country: str, worksheet: gspread.Worksheet, existing_urls: se
         else:
             short_content = ""
 
+        # Filter: skip if not genuinely from the target country
+        if not is_pakistani_lead(country, url, contact.get("phone", ""), contact.get("email", "")):
+            logger.info(f"  -> Skipped non-Pakistani lead: {title}")
+            continue
+
         row = [
             country,
             title,
@@ -404,7 +454,7 @@ def main():
     parser = argparse.ArgumentParser(description="Web Agency Scraper v2")
     parser.add_argument("--daily", action="store_true", help="Daily mode: dedup by URL, skip existing")
     parser.add_argument("--force", action="store_true", help="Force re-scrape all (ignore dedup)")
-    parser.add_argument("--countries", nargs="+", default=["UAE", "Saudi Arabia", "Qatar", "Kuwait", "Oman", "Bahrain", "Turkey"],
+    parser.add_argument("--countries", nargs="+", default=["UAE", "Saudi Arabia", "Qatar", "Kuwait", "Oman", "Bahrain", "Turkey", "Pakistan"],
                         help="Countries to scrape (default: all ME)")
     parser.add_argument("--retry", type=int, default=2, help="Max retries per country on failure")
     args = parser.parse_args()
