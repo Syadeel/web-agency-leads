@@ -2,7 +2,7 @@ name: Lead Pipeline (24/7)
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # 23:00 UTC = 4:00 AM PKT
+    - cron: '0 23 * * *'
   workflow_dispatch:
 
 jobs:
@@ -11,19 +11,16 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install requests python-dotenv gspread google-auth tavily firecrawl-py
+        run: pip install requests python-dotenv gspread google-auth tavily firecrawl-py
 
-      - name: Scrape leads (Tavily + Firecrawl, heavy mode for Pakistan)
+      - name: Scrape leads
         id: scrape
         continue-on-error: true
         env:
@@ -35,7 +32,4 @@ jobs:
 
       - name: Summary
         if: always()
-        run: |
-          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
-          echo "  PIPELINE COMPLETE"
-          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
+        run: echo "Pipeline complete - leads written to Google Sheets"
