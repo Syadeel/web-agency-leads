@@ -399,21 +399,70 @@ def write_to_sheet(worksheet: gspread.Worksheet, row_data: List[Any], existing_u
 # ----------------------------------------------------------------------
 # Main scraping routine
 # ----------------------------------------------------------------------
-def scrape_country(country: str, worksheet: gspread.Worksheet, existing_urls: set = None) -> int:
+# Industry-specific search queries for each country
+COUNTRY_QUERIES = {
+    "Pakistan": [
+        "web design agencies in Pakistan",
+        "web development companies in Pakistan",
+        "digital marketing agencies in Pakistan",
+        "SEO companies in Pakistan",
+        "ecommerce development Pakistan",
+        "software houses in Pakistan",
+        "IT companies in Lahore",
+        "IT companies in Karachi",
+        "IT companies in Islamabad",
+        "mobile app development Pakistan",
+        "branding agencies in Pakistan",
+        "wordpress development Pakistan",
+        "graphic design agencies Pakistan",
+        "social media marketing Pakistan",
+        "freelance web designers Pakistan",
+    ],
+    "default": [
+        "web design agencies in {country}",
+        "digital agencies in {country}",
+        "web development companies in {country}",
+    ]
+}
+
+def scrape_country(country: str, worksheet: gspread.Worksheet, existing_urls: set = None, heavy_mode: bool = False) -> int:
     """
     Search web agencies for one country, deep scrape each result,
     and write to the sheet. Returns number of agencies found.
+    In heavy mode, runs multiple industry-specific queries.
     """
-    query = f"web design agencies in {country}"
-    logger.info(f"--- Searching: {country} ---")
-    search_results = search_agencies(query)
-
-    if not search_results:
+    queries = COUNTRY_QUERIES.get(country, COUNTRY_QUERIES["default"])
+    if not heavy_mode:
+        queries = queries[:1]  # Just the first query in normal mode
+    
+    all_results = []
+    seen_urls = set()
+    
+    for query_template in queries:
+        query = query_template.format(country=country)
+        logger.info(f"--- Searching: {query} ---")
+        results = search_agencies(query)
+        
+        if results:
+            # Dedup across queries
+            for r in results:
+                u = r["url"].rstrip("/")
+                if u not in seen_urls:
+                    seen_urls.add(u)
+                    all_results.append(r)
+        
+        time.sleep(1)  # Small delay between queries
+    
+    if not all_results:
         logger.warning(f"No search results for {country}")
         return 0
-
+    
+    logger.info(f"Total unique results for {country}: {len(all_results)}")
+    
+    # Limit: respect max results (higher for Pakistan in heavy mode)
+    max_results = SEARCH_MAX_RESULTS * 5 if (heavy_mode and country == "Pakistan") else SEARCH_MAX_RESULTS
     count = 0
-    for idx, result in enumerate(search_results[:SEARCH_MAX_RESULTS]):
+    for idx, result in enumerate(all_results[:max_results]):
         url = result["url"]
         title = result["title"]
         snippet = result.get("snippet", "")
@@ -457,10 +506,11 @@ def main():
     parser.add_argument("--countries", nargs="+", default=["UAE", "Saudi Arabia", "Qatar", "Kuwait", "Oman", "Bahrain", "Turkey", "Pakistan"],
                         help="Countries to scrape (default: all ME)")
     parser.add_argument("--retry", type=int, default=2, help="Max retries per country on failure")
+    parser.add_argument("--heavy", action="store_true", help="Heavy mode: multiple queries per country (100+ leads)")
     args = parser.parse_args()
 
     logger.info(f"=== Starting Web Agency Scraper v2 ===")
-    logger.info(f"Mode: {'DAILY (dedup)' if args.daily else 'FULL'}")
+    logger.info(f"Mode: {'DAILY (dedup)' if args.daily else 'FULL'} {'HEAVY' if args.heavy else ''}")
     logger.info(f"Countries: {args.countries}")
 
     worksheet = get_google_sheet()
@@ -478,7 +528,7 @@ def main():
     for country in args.countries:
         for attempt in range(1, args.retry + 2):
             try:
-                agencies = scrape_country(country, worksheet, existing_urls)
+                agencies = scrape_country(country, worksheet, existing_urls, args.heavy)
                 total += agencies
                 logger.info(f"  [{country}] Finished: {agencies} agencies saved.")
                 time.sleep(SEARCH_DELAY)
