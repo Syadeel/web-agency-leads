@@ -300,10 +300,29 @@ def is_pakistani_lead(country: str, url: str, phone: str, email: str) -> bool:
     if checks:
         return True
     
-    # No indicators at all — check business name keywords
-    # Many Pakistani businesses use .com but are still in Pakistan
-    # For these, we'll accept them but flag for review
-    return True  # Accept but may need human review
+    # No Pakistani indicators — reject to keep data clean
+    return False
+
+
+# Sites to skip (social media, content platforms, directories)
+SKIP_URLS = [
+    "instagram.com", "facebook.com", "linkedin.com", "twitter.com", "x.com",
+    "youtube.com", "youtu.be", "tiktok.com", "pinterest.com", "snapchat.com",
+    "reddit.com", "quora.com", "medium.com", "blogspot.com",
+    "f6s.com", "crunchbase.com", "glassdoor.com",
+    "upwork.com", "fiverr.com", "freelancer.com",
+    "behance.net", "dribbble.com", "github.com",
+]
+
+def is_valid_business_site(url: str) -> bool:
+    """Check if URL is an actual business website (not social media/directory)."""
+    if not url:
+        return False
+    url_lower = url.lower()
+    for domain in SKIP_URLS:
+        if domain in url_lower:
+            return False
+    return True
 
 
 # ----------------------------------------------------------------------
@@ -466,6 +485,11 @@ def scrape_country(country: str, worksheet: gspread.Worksheet, existing_urls: se
         url = result["url"]
         title = result["title"]
         snippet = result.get("snippet", "")
+
+        # Skip social media, directories, content platforms
+        if not is_valid_business_site(url):
+            logger.info(f"  -> Skipped non-business site: {title}")
+            continue
 
         # Deep scrape with Firecrawl
         time.sleep(SCRAPE_DELAY)  # respect rate limits
